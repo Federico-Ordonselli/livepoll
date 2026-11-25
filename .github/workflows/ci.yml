@@ -85,10 +85,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+      # No `cache: pnpm` here: this job installs nothing, so there is no store to cache
+      # (setup-node's post step would fail on the missing path).
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
       # Full report for visibility, then fail only on high/critical.
       # Known moderate advisories are listed in docs/DECISIONS.md.
       - run: pnpm audit --prod || true
