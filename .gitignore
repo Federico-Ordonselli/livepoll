@@ -1,0 +1,25 @@
+node_modules
+dist
+build
+tmp
+coverage
+*.tsbuildinfo
+
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.test
+
+# Playwright
+test-results
+playwright-report
+blob-report
+
+# Editors / OS
+.idea
+.vscode
+.fleet
+.DS_Store
+npm-debug.log
