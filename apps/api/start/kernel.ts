@@ -18,6 +18,7 @@ server.use([
   () => import('#middleware/security_headers_middleware'),
   () => import('#middleware/force_json_response_middleware'),
   () => import('@adonisjs/cors/cors_middleware'),
+  () => import('#middleware/origin_check_middleware'),
 ])
 
 router.use([() => import('@adonisjs/core/bodyparser_middleware')])

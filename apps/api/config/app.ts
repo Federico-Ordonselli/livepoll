@@ -7,7 +7,12 @@ import { defineConfig } from '@adonisjs/core/http'
  * The app key signs cookies (session + voter id). Rotating it logs everyone
  * out and gives every voter a new identity.
  */
-export const appKey = new Secret(env.get('APP_KEY'))
+const rawAppKey = env.get('APP_KEY')
+const PUBLIC_KEYS = ['test-key-not-a-secret-0123456789abc']
+if (rawAppKey.length < 32 || (app.inProduction && PUBLIC_KEYS.includes(rawAppKey))) {
+  throw new Error('APP_KEY must be a random secret of at least 32 characters')
+}
+export const appKey = new Secret(rawAppKey)
 
 const trustProxy = env.get('TRUST_PROXY', false)
 
@@ -22,7 +27,9 @@ export const http = defineConfig({
    * Behind nginx every request comes from the proxy's IP; trusting it makes
    * `request.ip()` read X-Forwarded-For so rate limits stay per client.
    */
-  trustProxy: () => trustProxy,
+  // Only the immediate peer (nginx) is trusted, so a client-supplied
+  // X-Forwarded-For entry can never become the rate-limit key.
+  trustProxy: (_address: string, distance: number) => trustProxy && distance === 0,
 
   cookie: {
     domain: '',

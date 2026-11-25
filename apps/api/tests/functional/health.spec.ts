@@ -40,3 +40,37 @@ test.group('Health and errors', () => {
     assert.isUndefined(denied.header('access-control-allow-origin'))
   })
 })
+
+test.group('CSRF and body parsing', () => {
+  const url = () => `http://${env.get('HOST')}:${env.get('PORT')}/api/auth/login`
+
+  test('a POST from a foreign origin is rejected before the handler runs', async ({ client }) => {
+    const response = await client
+      .post('/api/auth/login')
+      .header('origin', 'https://evil.example')
+      .json({ email: 'a@b.co', password: 'password123' })
+    response.assertStatus(403)
+    response.assertBodyContains({ error: { code: 'FORBIDDEN' } })
+  })
+
+  test('an HTML form post (urlencoded) cannot log anyone in', async ({ assert }) => {
+    const response = await fetch(url(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'email=a%40b.co&password=password123',
+    })
+    assert.equal(response.status, 422)
+    assert.isNull(response.headers.get('set-cookie'))
+  })
+
+  test('a JSON scalar body is a 422, not a 500', async ({ assert }) => {
+    const response = await fetch(url(), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: 'null',
+    })
+    assert.equal(response.status, 422)
+    const body = (await response.json()) as { error: { code: string } }
+    assert.equal(body.error.code, 'VALIDATION_ERROR')
+  })
+})

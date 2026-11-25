@@ -11,6 +11,7 @@ const CODE_BY_STATUS: Record<number, ErrorCode> = {
   404: 'NOT_FOUND',
   413: 'VALIDATION_ERROR',
   415: 'VALIDATION_ERROR',
+  422: 'VALIDATION_ERROR',
   429: 'RATE_LIMITED',
 }
 

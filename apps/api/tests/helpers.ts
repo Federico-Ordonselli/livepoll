@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import mongoose from 'mongoose'
 import type { ApiClient } from '@japa/api-client'
 import limiter from '@adonisjs/limiter/services/main'
 import type { PollDTO } from '@livepoll/shared'
@@ -7,6 +8,10 @@ import { User } from '#models/user'
 import { Vote } from '#models/vote'
 
 export async function resetState() {
+  // Never wipe a database that is not clearly a test database.
+  if (!mongoose.connection.name.endsWith('_test')) {
+    throw new Error(`Refusing to reset non-test database "${mongoose.connection.name}"`)
+  }
   await Promise.all([User.deleteMany({}), Poll.deleteMany({}), Vote.deleteMany({})])
   await limiter.clear()
 }
