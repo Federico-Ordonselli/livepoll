@@ -229,3 +229,7 @@ Sockets are read-only: there is no event that writes data.
 4. Upgrade to **AdonisJS v7** to pick up the `http-server` security fixes.
 5. Poll lifecycle niceties: scheduled closing, deleting polls, result export.
 6. Code-split the web bundle by route (currently a single ~540 kB chunk, 168 kB gzipped).
+
+## License
+
+[MIT](LICENSE) © 2026 Federico Ordonselli
