@@ -27,3 +27,12 @@ Format: **Decision** · *Why* · *Alternative discarded*.
 17. **`GET /api/polls/:slug` and the vote route share a `voter` middleware that issues the `voter_id` cookie (UUID v4, signed, httpOnly, 1 year).** · A first-time visitor gets an identity before voting, so `myVote` works right away.
 18. **Route params are constrained with `SLUG_PATTERN`**, so malformed slugs 404 at the router and never reach MongoDB. Mongoose `sanitizeFilter` is on as defence in depth against `$`-operator injection.
 19. **Login always runs a hash verification, even for unknown emails**, so response time doesn't reveal which emails are registered.
+
+## Real-time
+
+20. **Socket.io is attached in a provider's `ready()` hook via `server.getNodeServer()`.** · In Adonis v6, `ready()` runs after the ignitor created the Node HTTP server, so it's the first point where the server exists. Tests start their HTTP server later through `testUtils.httpServer()`, so `tests/bootstrap.ts` attaches it explicitly. On shutdown only the sockets are disconnected; Adonis closes the HTTP server. · A preload file, which runs before the HTTP server exists.
+21. **`poll:updated` broadcasts are coalesced per poll: one in-flight MongoDB read plus a dirty flag.** · Broadcasting each request's own `findOneAndUpdate` result can deliver snapshots out of order under concurrency (an older count arriving after a newer one). Sequential re-reads guarantee the last broadcast reflects the latest state, and bursts send fewer messages. · Emitting per request, or adding a version field to the poll.
+22. **Presence = `io.in(room).fetchSockets().length`, so it counts sockets, not people.** Two tabs count as two viewers, which matches the spec ("count of sockets in room"). `fetchSockets` also works if a Redis adapter is added later. On disconnect, the rooms are captured in `disconnecting` and recounted on `disconnect`, once the socket has actually left.
+23. **A socket can be in only one poll room at a time; joining a new poll leaves the previous one.** · It matches the UI (one active poll per tab) and stops one socket from joining thousands of rooms. · Unlimited rooms per socket.
+24. **Join payloads are validated with the shared zod schema. Invalid or unknown slugs are silently ignored; there is no error event.** · The contract defines no error event, and the REST `GET` is what reports 404 to the UI.
+25. **Single API instance.** With more than one instance, Socket.io would need the Redis adapter and the limiter the Redis store. Not needed at this scale.

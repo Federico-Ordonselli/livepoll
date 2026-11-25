@@ -4,6 +4,7 @@ import type { PollWithVoteResponse } from '@livepoll/shared'
 import { AppError, isDuplicateKeyError } from '#exceptions/app_error'
 import { Poll, type PollAttrs } from '#models/poll'
 import { Vote } from '#models/vote'
+import realtime from '#services/realtime'
 
 export interface CreatePollData {
   question: string
@@ -70,5 +71,6 @@ export async function closePoll(slug: string, userId: Types.ObjectId): Promise<P
     { new: true }
   ).lean()
 
+  realtime.pollClosed(slug)
   return closed ?? (await findPollOrFail(slug))
 }

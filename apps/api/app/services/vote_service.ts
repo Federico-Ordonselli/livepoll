@@ -2,6 +2,7 @@ import type { Types } from 'mongoose'
 import { AppError, isDuplicateKeyError } from '#exceptions/app_error'
 import { Poll, type PollAttrs } from '#models/poll'
 import { Vote } from '#models/vote'
+import realtime from '#services/realtime'
 import { findPollOrFail } from '#services/poll_service'
 
 /**
@@ -45,6 +46,7 @@ export async function castVote(slug: string, voterId: string, optionId: string) 
     result = await changeVote(poll, voterId, option._id)
   }
 
+  realtime.pollUpdated(slug)
   return result
 }
 
