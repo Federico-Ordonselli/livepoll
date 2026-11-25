@@ -23,3 +23,6 @@ blob-report
 .fleet
 .DS_Store
 npm-debug.log
+
+# Playwright MCP scratch output
+.playwright-mcp

@@ -36,3 +36,18 @@ Format: **Decision** · *Why* · *Alternative discarded*.
 23. **A socket can be in only one poll room at a time; joining a new poll leaves the previous one.** · It matches the UI (one active poll per tab) and stops one socket from joining thousands of rooms. · Unlimited rooms per socket.
 24. **Join payloads are validated with the shared zod schema. Invalid or unknown slugs are silently ignored; there is no error event.** · The contract defines no error event, and the REST `GET` is what reports 404 to the UI.
 25. **Single API instance.** With more than one instance, Socket.io would need the Redis adapter and the limiter the Redis store. Not needed at this scale.
+
+## Frontend
+
+26. **The socket layer is a plain Redux middleware built by `createSocketMiddleware(createSocket)`, not the listener middleware.** · The factory argument lets tests inject a fake socket, and the whole socket lifecycle sits in one ~90-line file. Components only dispatch `watchPoll` / `unwatchPoll`.
+27. **The middleware connects lazily on the first `watchPoll` and joins rooms only while connected; the `connect` handler (re)joins the current room.** · Emitting while disconnected would sit in socket.io's send buffer and produce a duplicate join on connect.
+28. **On *re*connect (not the first connect) the middleware refetches the poll over REST.** · `poll:state` brings counts back, but votes or a close may have been missed while offline, and `myVote` only comes from REST.
+29. **The poll page refetches on mount (`refetchOnMountOrArgChange`).** · `watchPoll` resets the poll slice, and a cached query result wouldn't refill it.
+30. **Logout calls `api.util.resetApiState()`.** · The previous user's polls and `myVote` must not survive in the cache.
+31. **The auth slice ignores "rejected" actions with `meta.condition` (deduplicated RTK Query requests).** · Otherwise StrictMode's double `me` call would mark the user as anonymous.
+32. **Voting uses a native radio group plus one Vote / Change vote button.** · Arrow keys, Tab and Enter work without custom key handling. Results are always visible, not only after voting, since watching them live is the point.
+33. **Result bars are `role="img"` with a full label ("Go: 1 vote, 100% (your vote)") inside an `aria-live="polite"` region; the visual text row is `aria-hidden` so it isn't read twice.** The width animation is off under `prefers-reduced-motion`.
+34. **Closing from the dashboard has no confirm dialog.** · Fewer moving parts, and native `confirm()` dialogs interfere with E2E tests. A real product would use an undo or an inline confirm.
+35. **The test setup patches the global `Request` to resolve relative URLs.** · Node's `Request` rejects `/api/...`; the patch lets the app keep `baseUrl: '/api'` in tests.
+36. **Same-origin in every environment**: the Vite dev/preview server and nginx (Docker) proxy `/api` and `/socket.io`, so cookies stay first-party and CORS is a second line of defence, not a requirement.
+37. **Known limitation: a REST vote response can arrive *after* a newer `poll:updated` broadcast and briefly show slightly older counts.** The next broadcast corrects it. Worth fixing with a version counter only if it shows up in practice.
