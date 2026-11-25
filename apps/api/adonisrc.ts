@@ -45,6 +45,8 @@ export default defineConfig({
     },
     () => import('@adonisjs/core/providers/vinejs_provider'),
     () => import('@adonisjs/cors/cors_provider'),
+    () => import('@adonisjs/limiter/limiter_provider'),
+    () => import('#providers/mongoose_provider'),
   ],
 
   /*
@@ -71,7 +73,7 @@ export default defineConfig({
       {
         files: ['tests/unit/**/*.spec(.ts|.js)'],
         name: 'unit',
-        timeout: 2000,
+        timeout: 5000,
       },
       {
         files: ['tests/functional/**/*.spec(.ts|.js)'],

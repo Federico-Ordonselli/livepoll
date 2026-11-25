@@ -63,6 +63,7 @@ export const ERROR_CODES = [
   'ALREADY_VOTED',
   'POLL_CLOSED',
   'INVALID_OPTION',
+  'CONFLICT',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
 ] as const

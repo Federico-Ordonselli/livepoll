@@ -20,4 +20,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   CORS_ORIGINS: Env.schema.string(),
   RATE_LIMIT_AUTH_PER_MIN: Env.schema.number(),
   RATE_LIMIT_VOTE_PER_MIN: Env.schema.number(),
+  /** Set to true only when the API sits behind a reverse proxy (nginx in Docker). */
+  TRUST_PROXY: Env.schema.boolean.optional(),
+  /** Defaults to true in production. */
+  COOKIE_SECURE: Env.schema.boolean.optional(),
 })

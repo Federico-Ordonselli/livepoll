@@ -1,15 +1,14 @@
 import { defineConfig } from '@adonisjs/cors'
+import { allowedOrigins } from '#config/origins'
 
 /**
- * Configuration options to tweak the CORS policy. The following
- * options are documented on the official documentation website.
- *
- * https://docs.adonisjs.com/guides/security/cors
+ * Only the web app's origins may make credentialed cross-origin requests.
+ * (In dev and Docker the web app proxies /api, so requests are same-origin anyway.)
  */
 const corsConfig = defineConfig({
   enabled: true,
-  origin: true,
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE'],
+  origin: allowedOrigins,
+  methods: ['GET', 'HEAD', 'POST'],
   headers: true,
   exposeHeaders: [],
   credentials: true,
