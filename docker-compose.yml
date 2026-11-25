@@ -33,7 +33,8 @@ services:
       # Leave empty to auto-generate a key on first start (stored in the api-data volume).
       APP_KEY: ${APP_KEY:-}
       MONGO_URL: mongodb://mongo:27017/livepoll
-      CORS_ORIGINS: http://localhost:8088
+      # The public URL(s) of the web app; browser POSTs from other origins get 403.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8088}
       RATE_LIMIT_AUTH_PER_MIN: ${RATE_LIMIT_AUTH_PER_MIN:-10}
       RATE_LIMIT_VOTE_PER_MIN: ${RATE_LIMIT_VOTE_PER_MIN:-60}
       TRUST_PROXY: 'true'

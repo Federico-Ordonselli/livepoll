@@ -119,3 +119,17 @@ test.group('Auth', (group) => {
     }
   })
 })
+
+test.group('Auth: credentials location', (group) => {
+  group.each.setup(() => resetState())
+
+  test('credentials in the query string are ignored (they would end up in access logs)', async ({
+    client,
+  }) => {
+    const { email } = await registerUser(client)
+    const response = await client
+      .post(`/api/auth/login?email=${encodeURIComponent(email)}&password=password123`)
+      .json({})
+    response.assertStatus(422)
+  })
+})

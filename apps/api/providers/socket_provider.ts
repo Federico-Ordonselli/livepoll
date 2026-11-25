@@ -19,6 +19,11 @@ export default class SocketProvider {
     const { default: realtime } = await import('#services/realtime')
     const { allowedOrigins } = await import('#config/origins')
     realtime.attach(nodeServer as import('node:http').Server, allowedOrigins)
+
+    // Terminating hooks run in reverse registration order, so this one runs
+    // before AdonisJS closes the HTTP server, which would otherwise wait
+    // forever for open WebSocket connections.
+    this.app.terminating(() => realtime.close())
   }
 
   async shutdown() {

@@ -13,11 +13,12 @@ type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 const sockets: ClientSocket[] = []
 
-function client(): Promise<ClientSocket> {
+function client(origin?: string): Promise<ClientSocket> {
   const socket: ClientSocket = connect(`http://${env.get('HOST')}:${env.get('PORT')}`, {
     transports: ['websocket'],
     forceNew: true,
     reconnection: false,
+    extraHeaders: origin ? { origin } : {},
   })
   sockets.push(socket)
   return new Promise((resolve, reject) => {
@@ -226,5 +227,80 @@ test.group('Realtime (Socket.io)', (group) => {
 
     const response = await http.get(`/api/polls/${poll.slug}`)
     assert.equal(response.body().poll.totalVotes, 0)
+  })
+})
+
+test.group('Realtime races', (group) => {
+  group.each.setup(() => resetState())
+  group.each.teardown(() => {
+    for (const socket of sockets.splice(0)) socket.disconnect()
+  })
+
+  test('join immediately followed by leave does not leave a ghost viewer', async ({
+    client: http,
+    assert,
+  }) => {
+    const { session } = await registerUser(http)
+    const poll = await createPoll(http, session)
+    const watcher = await client()
+    const flaky = await client()
+    await join(watcher, poll.slug)
+
+    // Both packets arrive before the server's MongoDB read for the join completes.
+    flaky.emit(CLIENT_EVENTS.join, { slug: poll.slug })
+    flaky.emit(CLIENT_EVENTS.leave, { slug: poll.slug })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    // A third socket joining sees the true count: watcher + itself.
+    const probe = await client()
+    const presence = next(probe, SERVER_EVENTS.presence)
+    await join(probe, poll.slug)
+    assert.deepEqual(await presence, { slug: poll.slug, count: 2 })
+  })
+
+  test('rapid A → B navigation ends in room B only', async ({ client: http, assert }) => {
+    const { session } = await registerUser(http)
+    const a = await createPoll(http, session)
+    const b = await createPoll(http, session)
+    const roaming = await client()
+
+    const stateB = next(roaming, SERVER_EVENTS.state, (p) => p.poll.slug === b.slug)
+    roaming.emit(CLIENT_EVENTS.join, { slug: a.slug })
+    roaming.emit(CLIENT_EVENTS.join, { slug: b.slug })
+    await stateB
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const updateB = next(roaming, SERVER_EVENTS.updated, (p) => p.slug === b.slug)
+    let gotA = false
+    roaming.on(SERVER_EVENTS.updated, (p) => {
+      if (p.slug === a.slug) gotA = true
+    })
+    await vote(http, a.slug, a.options[0]!.id, newVoterId())
+    await vote(http, b.slug, b.options[0]!.id, newVoterId())
+    await updateB
+    assert.isFalse(gotA)
+  })
+
+  test('A → B → A while B is still loading ends in room A', async ({ client: http, assert }) => {
+    const { session } = await registerUser(http)
+    const a = await createPoll(http, session)
+    const b = await createPoll(http, session)
+    const roaming = await client()
+    await join(roaming, a.slug)
+
+    roaming.emit(CLIENT_EVENTS.join, { slug: b.slug })
+    roaming.emit(CLIENT_EVENTS.join, { slug: a.slug })
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const updateA = next(roaming, SERVER_EVENTS.updated, (p) => p.slug === a.slug)
+    await vote(http, a.slug, a.options[0]!.id, newVoterId())
+    const payload = await updateA
+    assert.equal(payload.slug, a.slug)
+  })
+
+  test('a WebSocket handshake from a foreign browser origin is refused', async ({ assert }) => {
+    await assert.rejects(() => client('https://evil.example'))
+    const allowed = await client('http://localhost:5173')
+    assert.isTrue(allowed.connected)
   })
 })

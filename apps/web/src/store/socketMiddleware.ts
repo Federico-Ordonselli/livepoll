@@ -51,7 +51,12 @@ export function createSocketMiddleware(
         }
         connectedBefore = true
       })
-      s.on('disconnect', () => store.dispatch(connectionChanged('disconnected')))
+      s.on('disconnect', (reason) => {
+        store.dispatch(connectionChanged('disconnected'))
+        // socket.io-client retries network drops by itself, but not a disconnect
+        // initiated by the server (e.g. during a restart). Reconnect explicitly.
+        if (reason === 'io server disconnect') s.connect()
+      })
       s.on('connect_error', () => store.dispatch(connectionChanged('disconnected')))
 
       s.on(SERVER_EVENTS.state, (payload) => store.dispatch(stateReceived(payload)))
@@ -74,11 +79,12 @@ export function createSocketMiddleware(
         currentSlug = action.payload
         if (s.connected) {
           s.emit(CLIENT_EVENTS.join, { slug: action.payload })
-        } else {
+        } else if (!s.active) {
           // The 'connect' handler joins currentSlug once the connection is up.
           store.dispatch(connectionChanged('connecting'))
           s.connect()
         }
+        // else: already retrying in the background; keep showing 'disconnected'.
       }
 
       if (unwatchPoll.match(action) && action.payload === currentSlug) {

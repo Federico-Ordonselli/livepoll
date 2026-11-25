@@ -1,5 +1,5 @@
 import { SERVER_EVENTS, type PollDTO } from '@livepoll/shared'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router'
 import { jsonResponse, makePoll, mockFetch } from '../test/http'
 import { renderWithStore } from '../test/renderWithStore'
@@ -50,7 +50,11 @@ describe('PollPage', () => {
     expect(screen.getByRole('button', { name: 'Vote' })).toHaveFocus()
     await user.keyboard('{Enter}')
 
-    expect(await screen.findByText(/You voted for/)).toHaveTextContent('You voted for Spaces.')
+    const confirmation = await screen.findByText(/You voted for/)
+    expect(confirmation).toHaveTextContent('You voted for Spaces.')
+    // The Vote button is gone; focus moves to the (announced) confirmation, not <body>.
+    await waitFor(() => expect(confirmation).toHaveFocus())
+    expect(confirmation.closest('[role="status"]')).not.toBeNull()
     const voteRequest = fetchMock.mock.calls
       .map(([request]) => request)
       .find((request) => request.method === 'POST')

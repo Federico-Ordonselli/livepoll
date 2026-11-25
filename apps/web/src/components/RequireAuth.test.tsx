@@ -18,12 +18,12 @@ function renderGuarded(auth: AuthState) {
 
 describe('RequireAuth', () => {
   it('waits while the session is unknown', () => {
-    renderGuarded({ user: null, status: 'unknown' })
+    renderGuarded({ user: null, status: 'unknown', pendingCheck: null })
     expect(screen.getByRole('status')).toHaveTextContent('Checking your session')
   })
 
   it('redirects anonymous users to the landing page', () => {
-    renderGuarded({ user: null, status: 'anonymous' })
+    renderGuarded({ user: null, status: 'anonymous', pendingCheck: null })
     expect(screen.getByRole('heading', { name: 'Landing' })).toBeInTheDocument()
   })
 
@@ -31,6 +31,7 @@ describe('RequireAuth', () => {
     renderGuarded({
       user: { id: 'u1', email: 'ada@example.com', createdAt: '2026-01-01T00:00:00.000Z' },
       status: 'authenticated',
+      pendingCheck: null,
     })
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
   })

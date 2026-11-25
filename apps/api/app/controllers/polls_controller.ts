@@ -9,7 +9,7 @@ import { createPollValidator, voteValidator } from '#validators/poll'
 
 export default class PollsController {
   async store(ctx: HttpContext) {
-    const data = await ctx.request.validateUsing(createPollValidator)
+    const data = await createPollValidator.validate(ctx.request.body())
     const poll = await createPoll(currentUser(ctx)._id, data)
     return ctx.response.created({ poll: toPollDTO(poll) } satisfies PollResponse)
   }
@@ -25,7 +25,7 @@ export default class PollsController {
   }
 
   async vote(ctx: HttpContext) {
-    const { optionId } = await ctx.request.validateUsing(voteValidator)
+    const { optionId } = await voteValidator.validate(ctx.request.body())
     const { poll, myVote } = await castVote(ctx.params.slug, currentVoter(ctx), optionId)
     return { poll: toPollDTO(poll), myVote } satisfies PollWithVoteResponse
   }

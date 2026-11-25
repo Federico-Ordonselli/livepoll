@@ -38,6 +38,9 @@ export const api = createApi({
         method: 'POST',
         body: { optionId },
       }),
+      // A 409 (voted in another tab, or poll just closed) means our view is stale: reload it.
+      invalidatesTags: (_result, error, { slug }) =>
+        error && 'status' in error && error.status === 409 ? [{ type: 'Poll', id: slug }] : [],
     }),
     createPoll: build.mutation<PollResponse, CreatePollInput>({
       query: (body) => ({ url: '/polls', method: 'POST', body }),

@@ -40,7 +40,7 @@ function PollRow({ poll }: { poll: PollDTO }) {
 }
 
 export function DashboardPage() {
-  const { data, error, isLoading } = useMyPollsQuery()
+  const { data, error, isLoading } = useMyPollsQuery(undefined, { refetchOnMountOrArgChange: true })
 
   return (
     <div className="space-y-6">

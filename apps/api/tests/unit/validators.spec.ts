@@ -39,6 +39,8 @@ const credentialCases = [
   { email: 'ada@example.com', password: 'x'.repeat(129) },
   { email: 'not-an-email', password: 'password' },
   { email: '  ADA@EXAMPLE.COM ', password: 'password' },
+  { email: 'josé@example.com', password: 'password' },
+  { email: 'ada+tag@example.co.uk', password: 'password' },
 ]
 
 test.group('VineJS and zod validators agree', () => {

@@ -108,3 +108,27 @@ describe('socket middleware', () => {
     })
   })
 })
+
+describe('socket middleware: server-initiated disconnects', () => {
+  it('reconnects by itself after "io server disconnect" (e.g. API restart)', () => {
+    const { socket, store } = setup()
+    store.dispatch(watchPoll(slug))
+    socket.simulateConnect()
+    expect(socket.connectCalls).toBe(1)
+
+    socket.simulateDisconnect('io server disconnect')
+    expect(store.getState().poll.connection).toBe('disconnected')
+    expect(socket.connectCalls).toBe(2)
+  })
+
+  it('does not hide an outage behind "connecting" when switching polls while retrying', () => {
+    const { socket, store } = setup()
+    store.dispatch(watchPoll(slug))
+    socket.simulateConnect()
+    socket.simulateDisconnect('transport close')
+
+    store.dispatch(watchPoll('efgh5678'))
+    expect(store.getState().poll.connection).toBe('disconnected')
+    expect(socket.connectCalls).toBe(1) // socket.io is already retrying
+  })
+})

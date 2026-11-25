@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router'
+import { SLUG_PATTERN } from '@livepoll/shared'
 import { ResultsBars } from '../components/ResultsBars'
 import { StatusBadge } from '../components/StatusBadge'
 import { VoteForm } from '../components/VoteForm'
@@ -12,6 +13,12 @@ import { NotFoundPage } from './NotFoundPage'
 
 export function PollPage() {
   const slug = useParams().slug ?? ''
+  // e.g. /p/mine: not a slug, so don't ask the API or open a socket for it.
+  if (!SLUG_PATTERN.test(slug)) return <NotFoundPage title="Poll not found" />
+  return <LivePoll slug={slug} />
+}
+
+function LivePoll({ slug }: { slug: string }) {
   const dispatch = useAppDispatch()
 
   useEffect(() => {
@@ -25,6 +32,7 @@ export function PollPage() {
   const { error, refetch } = useGetPollQuery(slug, { refetchOnMountOrArgChange: true })
   const live = useAppSelector((state) => (state.poll.slug === slug ? state.poll : null))
   const poll = live?.poll
+  const announcement = useAnnouncementFocus(poll ? poll.status : null, live?.myVote ?? null)
 
   if (!live || !poll) {
     if (error) {
@@ -46,9 +54,9 @@ export function PollPage() {
     )
   }
 
-  const { myVote, viewers, connection } = live
+  const { myVote, myVoteKnown, viewers, connection } = live
   const isOpen = poll.status === 'open'
-  const canVote = isOpen && (myVote === null || poll.allowVoteChange)
+  const canVote = isOpen && myVoteKnown && (myVote === null || poll.allowVoteChange)
   const myOption = poll.options.find((option) => option.id === myVote)
 
   return (
@@ -74,18 +82,30 @@ export function PollPage() {
         </p>
       )}
 
-      {!isOpen && (
-        <p className="rounded-md border border-slate-300 bg-slate-100 p-3 font-medium text-slate-800">
-          This poll is closed. Voting has ended.
-        </p>
-      )}
+      {/* Status messages are announced, and receive focus when the control the user
+          was on disappears (after voting, or when the poll closes live). */}
+      <div role="status" className="space-y-3">
+        {!isOpen && (
+          <p
+            ref={announcement.closedRef}
+            tabIndex={-1}
+            className="rounded-md border border-slate-300 bg-slate-100 p-3 font-medium text-slate-800 focus:outline-none"
+          >
+            This poll is closed. Voting has ended.
+          </p>
+        )}
 
-      {myOption && (
-        <p className="text-slate-800">
-          You voted for <strong>{myOption.label}</strong>.
-          {isOpen && !poll.allowVoteChange && ' Votes cannot be changed in this poll.'}
-        </p>
-      )}
+        {myOption && (
+          <p
+            ref={announcement.votedRef}
+            tabIndex={-1}
+            className="text-slate-800 focus:outline-none"
+          >
+            You voted for <strong>{myOption.label}</strong>.
+            {isOpen && !poll.allowVoteChange && ' Votes cannot be changed in this poll.'}
+          </p>
+        )}
+      </div>
 
       {/* Keyed on myVote so the selection resets when a fresh myVote arrives. */}
       {canVote && <VoteForm key={myVote ?? 'none'} poll={poll} myVote={myVote} />}
@@ -93,4 +113,32 @@ export function PollPage() {
       <ResultsBars options={poll.options} totalVotes={poll.totalVotes} myVote={myVote} />
     </article>
   )
+}
+
+/**
+ * Moves focus to the matching status message when, while the page is open,
+ * the user's vote changes or the poll closes. Initial page load never moves focus.
+ */
+function useAnnouncementFocus(status: 'open' | 'closed' | null, myVote: string | null) {
+  const closedRef = useRef<HTMLParagraphElement>(null)
+  const votedRef = useRef<HTMLParagraphElement>(null)
+  const previous = useRef<{ status: string; myVote: string | null } | null>(null)
+
+  useEffect(() => {
+    if (status === null) return
+    const before = previous.current
+    previous.current = { status, myVote }
+    if (!before) return
+
+    if (before.status === 'open' && status === 'closed') {
+      // Only take focus if it was lost (e.g. the vote form just unmounted).
+      if (!document.activeElement || document.activeElement === document.body) {
+        closedRef.current?.focus()
+      }
+    } else if (myVote && myVote !== before.myVote) {
+      votedRef.current?.focus()
+    }
+  }, [status, myVote])
+
+  return { closedRef, votedRef }
 }

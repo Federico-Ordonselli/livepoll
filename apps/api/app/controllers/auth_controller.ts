@@ -8,14 +8,16 @@ import { credentialsValidator } from '#validators/auth'
 
 export default class AuthController {
   async register(ctx: HttpContext) {
-    const { email, password } = await ctx.request.validateUsing(credentialsValidator)
+    // Body only: `validateUsing` would also read the query string, and
+    // credentials must never travel in a URL (it ends up in access logs).
+    const { email, password } = await credentialsValidator.validate(ctx.request.body())
     const user = await registerUser(email, password)
     startSession(ctx, user._id.toString())
     return ctx.response.created({ user: toUserDTO(user) } satisfies AuthResponse)
   }
 
   async login(ctx: HttpContext) {
-    const { email, password } = await ctx.request.validateUsing(credentialsValidator)
+    const { email, password } = await credentialsValidator.validate(ctx.request.body())
     const user = await verifyCredentials(email, password)
     startSession(ctx, user._id.toString())
     return { user: toUserDTO(user) } satisfies AuthResponse

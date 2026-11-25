@@ -11,8 +11,18 @@ import {
 } from '@livepoll/shared'
 import { Poll, toPollDTO } from '#models/poll'
 
-type IO = Server<ClientToServerEvents, ServerToClientEvents>
-type ClientSocket = Socket<ClientToServerEvents, ServerToClientEvents>
+/** Per-socket state: the poll this socket most recently asked to watch. */
+interface SocketData {
+  wantedSlug?: string
+}
+
+type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>
+type ClientSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>
 
 /**
  * Socket.io layer. Read-only for clients: they can join/leave a poll room and
@@ -31,17 +41,30 @@ export class RealtimeService {
 
   attach(httpServer: HttpServer, allowedOrigins: string[]) {
     if (this.#io) return
-    this.#io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
+    this.#io = new Server<
+      ClientToServerEvents,
+      ServerToClientEvents,
+      Record<string, never>,
+      SocketData
+    >(httpServer, {
       cors: { origin: allowedOrigins, credentials: true },
       serveClient: false,
+      // CORS only covers HTTP long-polling; a browser WebSocket handshake also
+      // carries Origin, so check it here for both transports.
+      allowRequest: (req, callback) => {
+        const origin = req.headers.origin
+        callback(null, !origin || allowedOrigins.includes(origin))
+      },
     })
     this.#io.on('connection', (socket) => this.#onConnection(socket))
   }
 
   async close() {
     if (!this.#io) return
-    // Disconnect clients but leave closing the HTTP server to AdonisJS.
-    this.#io.disconnectSockets(true)
+    // Close the transports but leave closing the HTTP server to AdonisJS.
+    // Clients see a "transport close" and reconnect on their own. (An explicit
+    // `disconnectSockets()` would tell them the server kicked them out, and
+    // socket.io-client does not auto-reconnect after that.)
     this.#io.engine.close()
     this.#io = null
   }
@@ -91,17 +114,28 @@ export class RealtimeService {
       const parsed = pollRoomPayloadSchema.safeParse(payload)
       if (!parsed.success) return
       const { slug } = parsed.data
+      const room = pollRoom(slug)
+      // The latest request always wins, even if it is for a room we are already in
+      // (A → B → A while B is still loading must end in A).
+      socket.data.wantedSlug = slug
+      if (socket.rooms.has(room)) return
 
       try {
+        // Subscribe BEFORE reading the snapshot: a close or vote broadcast that
+        // happens during the read is then delivered, never lost in between.
+        await socket.join(room)
         const poll = await Poll.findOne({ slug }).lean()
-        if (!poll) return
+        // Unknown poll, or the client left / asked for another poll meanwhile.
+        if (!poll || socket.data.wantedSlug !== slug || socket.disconnected) {
+          await this.#leave(socket, room)
+          return
+        }
 
         // A client watches one poll at a time: leaving other rooms keeps the
         // UI model simple and stops a single socket from joining thousands of rooms.
-        for (const room of socket.rooms) {
-          if (room !== socket.id && room !== pollRoom(slug)) await this.#leave(socket, room)
+        for (const other of socket.rooms) {
+          if (other !== socket.id && other !== room) await this.#leave(socket, other)
         }
-        await socket.join(pollRoom(slug))
         socket.emit(SERVER_EVENTS.state, { poll: toPollDTO(poll) })
         await this.#broadcastPresence(slug)
       } catch (error) {
@@ -112,6 +146,7 @@ export class RealtimeService {
     socket.on(CLIENT_EVENTS.leave, async (payload) => {
       const parsed = pollRoomPayloadSchema.safeParse(payload)
       if (!parsed.success) return
+      if (socket.data.wantedSlug === parsed.data.slug) socket.data.wantedSlug = undefined
       await this.#leave(socket, pollRoom(parsed.data.slug))
     })
 
