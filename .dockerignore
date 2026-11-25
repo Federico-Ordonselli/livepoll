@@ -1,0 +1,13 @@
+**/node_modules
+**/build
+**/dist
+**/coverage
+**/.env
+**/.env.local
+.git
+.github
+.playwright-mcp
+apps/web/test-results
+apps/web/playwright-report
+docs
+*.md

@@ -1,3 +1,6 @@
+# `docker compose up --build` → app on http://localhost:8088
+# `docker compose up -d --wait mongo` (or `pnpm db:up`) → just MongoDB for local dev/tests
+
 services:
   mongo:
     image: mongo:8.0
@@ -13,5 +16,42 @@ services:
       retries: 20
       start_period: 10s
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      HOST: 0.0.0.0
+      PORT: '3333'
+      LOG_LEVEL: info
+      # Leave empty to auto-generate a key on first start (stored in the api-data volume).
+      APP_KEY: ${APP_KEY:-}
+      MONGO_URL: mongodb://mongo:27017/livepoll
+      CORS_ORIGINS: http://localhost:8088
+      RATE_LIMIT_AUTH_PER_MIN: ${RATE_LIMIT_AUTH_PER_MIN:-10}
+      RATE_LIMIT_VOTE_PER_MIN: ${RATE_LIMIT_VOTE_PER_MIN:-60}
+      TRUST_PROXY: 'true'
+    volumes:
+      - api-data:/data
+    # Not published: only reachable through the web container's nginx proxy.
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '8088:80'
+
 volumes:
   mongo-data:
+  api-data:
